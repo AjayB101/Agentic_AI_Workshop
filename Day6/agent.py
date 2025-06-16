@@ -5,7 +5,12 @@ from langchain.tools import Tool
 from scorer_tools import academic_score_tool, soft_skills_tool
 
 # 1. LLM
-llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash", 
+    temperature=0,
+    google_api_key="AIzaSyC764JrVP4Sc5ahEdQEtAgxxwEBmx4DZwQ"  # Replace with your actual API key
+)
+
 
 # 2. Tools
 tools = [
