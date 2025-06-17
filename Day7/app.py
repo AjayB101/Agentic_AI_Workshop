@@ -1,33 +1,61 @@
 import streamlit as st
 import pandas as pd
-from llms.llm_setup import get_gemini, get_phi
-from agents.academic_agent import analyze_academics
-from agents.softskill_agent import analyze_softskills
-from agents.scorer_agent import generate_score
-from agents.recommender_agent import recommend
+from scoring import (
+    AcademicPerformanceAgent,
+    SoftSkillInsightAgent,
+    ReadinessScoringAgent,
+    InterventionRecommenderAgent,
+)
+from rag_utils import extract_text_from_file
+from model_utils import get_gemini_llm
 
-st.set_page_config(page_title="📊 Placement Readiness Scorer", layout="centered")
-st.title("🎓 Placement Readiness Evaluator")
+st.set_page_config(
+    page_title="📊 Placement Readiness Scorer", layout="centered")
+st.title("🎓 Placement Readiness Scorer")
 
-st.subheader("📁 Upload Student Academic & Soft Skills CSV")
-csv_file = st.file_uploader("Upload student data", type=["csv"])
+st.subheader("📥 Upload Student CSV")
+csv_file = st.file_uploader("Upload CSV", type="csv")
 
-if csv_file:
+st.subheader("💬 Enter LinkedIn Bio")
+linkedin_bio = st.text_area("Paste LinkedIn Bio")
+
+st.subheader("📄 Upload Resume (PDF/DOCX/TXT)")
+resume_file = st.file_uploader("Upload Resume", type=["pdf", "docx", "txt"])
+
+if st.button("🚀 Generate Scores") and csv_file:
     df = pd.read_csv(csv_file)
-    st.dataframe(df.head())
+    llm = get_gemini_llm()
 
-    st.subheader("🚀 Evaluation Results")
-    gemini = get_gemini()
-    phi = get_phi()
+    if resume_file:
+        resume_text = extract_text_from_file(resume_file)
+    else:
+        resume_text = ""
 
-    for idx, student in df.iterrows():
-        academic_eval = analyze_academics(student, phi)
-        softskill_eval = analyze_softskills(student, gemini)
-        readiness_score = generate_score(academic_eval, softskill_eval)
-        suggestion = recommend(readiness_score)
+    for idx, row in df.iterrows():
+        st.markdown(f"---\n### 👤 {row['name']}")
 
-        with st.expander(f"👤 {student['name']}"):
-            st.write("📘 Academic Score:", academic_eval)
-            st.write("🗣️ Soft Skill Score:", softskill_eval)
-            st.write("✅ Readiness Score:", readiness_score)
-            st.write("🛠️ Recommended Interventions:", suggestion)
+        academic_score, reason = AcademicPerformanceAgent(row)
+        st.write(f"**Academic Score:** {academic_score:.2f}%")
+        st.caption(reason)
+
+        with st.spinner("Analyzing communication..."):
+            comm_response = SoftSkillInsightAgent(
+                linkedin_bio, resume_text, llm)
+        if comm_response:
+            digits = "".join(filter(str.isdigit, comm_response))[:3]
+            comm_score = int(digits) if digits else 50
+        else:
+            comm_score = 50
+
+        st.write(f"**Communication Score:** {comm_score}%")
+        st.caption(comm_response)
+
+        overall, tech, comm = ReadinessScoringAgent(academic_score, comm_score)
+        st.success(f"**🏁 Final Readiness Score:** {overall}%")
+        st.write(f"- Tech Readiness: {tech}%")
+        st.write(f"- Communication Readiness: {comm}%")
+
+        recs = InterventionRecommenderAgent(overall, tech, comm)
+        st.subheader("🔧 Recommendations")
+        for rec in recs:
+            st.markdown(f"- {rec}")

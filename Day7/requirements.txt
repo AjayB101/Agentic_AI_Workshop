@@ -1,6 +1,8 @@
 streamlit
 pandas
+PyPDF2
 langchain
-langchain-google-genai
+google-generativeai
+huggingface_hub
 langchain-community
-scikit-learn
+python-docx
