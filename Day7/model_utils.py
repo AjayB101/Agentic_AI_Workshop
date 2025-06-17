@@ -6,7 +6,7 @@ import google.generativeai as genai
 
 
 def get_gemini_llm():
-    genai.configure(api_key="AIzaSyC764JrVP4Sc5ahEdQEtAgxxwEBmx4DZwQ")
+    genai.configure(api_key="AIzaSyDFBvIZVRQ1Mc15jLsdyY6m2fNq9BuNPII")
     model = genai.GenerativeModel("gemini-1.5-flash")
     return model
 
@@ -21,5 +21,5 @@ def get_phi_llm():
         do_sample=False,
         repetition_penalty=1.03,
         huggingfacehub_api_token=os.getenv(
-            "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"),
+            "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"),
     )
