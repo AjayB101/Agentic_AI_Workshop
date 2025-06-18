@@ -1,5 +1,9 @@
 # Agentic_AI_Workshop
 
+## Live url
+
+https://ajayb101-agentic-ai-workshop-day7app-ithf2g.streamlit.app/
+
 # 🎓 Placement Readiness Scorer
 
 An interactive Streamlit app to evaluate student placement readiness using academic scores, soft skills, and AI-powered feedback. It enables uploading a CSV file and asking natural-language questions like:
@@ -29,13 +33,13 @@ cd placement-readiness-scorer
 pip install -r requirements.txt
 ```
 
-add your 
+add your
 hugging face and gemini token in models_utils.py
 
 Run the app
 streamlit run app.py
 
-upload the csv sample_data_100_students 
+upload the csv sample_data_100_students
 
 ✨ Example Prompts
 You can type queries like:
