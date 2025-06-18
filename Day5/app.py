@@ -50,6 +50,6 @@ if uploaded_file:
                 key=f"mcq_{idx}"
             )
 
-            user_answers.append((answer, mcq['answer']))
+            st.markdown(f"**Correct Answer:** {mcq['answer']}")
 
     # st.write(mcq_res_json)
