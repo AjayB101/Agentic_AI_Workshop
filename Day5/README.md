@@ -87,7 +87,7 @@ python-dotenv
 ## 🎯 Usage
 
 1. Start the application using `streamlit run app.py`
-2. Upload a PDF file containing your study material
+2. Upload a PDF file containing your study material use Genai.pdf provided in folder
 3. Click "Summarize" to generate a summary
 4. Click "Generate Quiz" to create MCQs from the summary
 5. Take the interactive quiz and see your results
