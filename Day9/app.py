@@ -1,121 +1,262 @@
 import streamlit as st
 import pandas as pd
-from scoring import (
-    AcademicPerformanceAgent,
-    ReadinessScoringAgent,
-    InterventionRecommenderAgent,
-)
-from rag_utils import ask_question_over_text, analyze_prompt_for_filtering
-from model_utils import get_gemini_llm
+from rag_utils import RAGSystem
+from data_base_utils import StudentDatabase
+import os
 
+# Page configuration
 st.set_page_config(
-    page_title="🎯 Placement Readiness Scorer", layout="centered")
-st.title("🎓 Placement Readiness Scorer")
+    page_title="🎓 AI-Powered Placement Readiness System",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.subheader("📊 Upload Student CSV with Soft Skills")
-csv_file = st.file_uploader("Upload CSV", type="csv")
-
-user_prompt = st.text_input(
-    "💭 Write your prompt (e.g. 'Show students below 70%', 'How can Avni improve?')")
+# Initialize RAG system
 
 
-def calculate_all_scores(df):
-    """Calculate scores for all students and return structured data"""
-    all_student_data = []
-
-    for idx, row in df.iterrows():
-        academic_score, reason = AcademicPerformanceAgent(row)
-        comm_score = int(row.get("softskill_score", 50))
-        overall, tech, comm = ReadinessScoringAgent(academic_score, comm_score)
-        recs = InterventionRecommenderAgent(overall, tech, comm)
-
-        student_data = {
-            'name': row['name'],
-            'academic_score': academic_score,
-            'communication_score': comm_score,
-            'overall_score': overall,
-            'tech_readiness': tech,
-            'comm_readiness': comm,
-            'recommendations': recs,
-            'raw_data': row
-        }
-        all_student_data.append(student_data)
-
-    return all_student_data
+@st.cache_resource
+def initialize_rag_system():
+    return RAGSystem()
 
 
-def display_student(student_data):
-    """Display a single student's information"""
-    st.markdown(f"---\n### 👤 {student_data['name']}")
+# Initialize the system
+rag_system = initialize_rag_system()
 
-    st.write(f"**Academic Score:** {student_data['academic_score']:.2f}%")
-    st.caption("Score from attendance, tests, assignments, and events.")
+# Title and Header
+st.title("🎓 AI-Powered Placement Readiness System")
+st.markdown("### Multi-Agent AI System with Persistent ChromaDB Storage")
 
-    st.write(
-        f"**Communication Score:** {student_data['communication_score']}%")
+# Sidebar for database management
+with st.sidebar:
+    st.header("📊 Database Management")
 
-    st.success(
-        f"**🏁 Final Readiness Score:** {student_data['overall_score']}%")
-    st.write(f"- Tech Readiness: {student_data['tech_readiness']}%")
-    st.write(f"- Communication Readiness: {student_data['comm_readiness']}%")
+    # Database stats
+    stats = rag_system.get_database_stats()
+    st.metric("Total Students", stats.get("total_students", 0))
 
-    st.subheader("🔧 Recommendations")
-    for rec in student_data['recommendations']:
-        st.markdown(f"- {rec}")
+    # Clear database button
+    if st.button("🗑️ Clear Database", type="secondary"):
+        rag_system.clear_database()
+        st.success("Database cleared!")
+        st.rerun()
 
+    st.markdown("---")
 
-if st.button("🚀 Generate") and csv_file:
-    df = pd.read_csv(csv_file)
-    llm = get_gemini_llm()
+    # File upload section
+    st.header("📁 Data Upload")
+    csv_file = st.file_uploader("Upload Student CSV", type="csv")
 
-    # Calculate scores for all students
-    all_student_data = calculate_all_scores(df)
+    if csv_file is not None:
+        if st.button("💾 Load Data to Database"):
+            with st.spinner("Loading data to ChromaDB..."):
+                df = pd.read_csv(csv_file)
+                success = rag_system.load_dataframe_data(df)
 
-    # If user has a specific prompt, let AI decide what to show
-    if user_prompt:
-        with st.spinner("🤔 Analyzing your request..."):
-            # Let AI analyze the prompt and decide which students to show
-            students_to_show = analyze_prompt_for_filtering(
-                llm, all_student_data, user_prompt)
+                if success:
+                    st.success(
+                        f"Successfully loaded {len(df)} students to database!")
+                    st.rerun()
+                else:
+                    st.error("Failed to load data to database")
 
-            if students_to_show:
-                st.info(
-                    f"Showing {len(students_to_show)} student(s) based on your request")
+        # Preview data
+        if st.checkbox("👀 Preview Data"):
+            df = pd.read_csv(csv_file)
+            st.dataframe(df.head())
 
-                # Display filtered students
-                for student_name in students_to_show:
-                    student_data = next(
-                        (s for s in all_student_data if s['name'] == student_name), None)
-                    if student_data:
-                        display_student(student_data)
+# Main content area
+col1, col2 = st.columns([2, 1])
 
-                # Prepare context for AI response
-                filtered_context = []
-                for student_name in students_to_show:
-                    student_data = next(
-                        (s for s in all_student_data if s['name'] == student_name), None)
-                    if student_data:
-                        filtered_context.append(
-                            f"Name: {student_data['name']}\n"
-                            f"Academic Score: {student_data['academic_score']:.2f}%\n"
-                            f"Communication Score: {student_data['communication_score']}%\n"
-                            f"Tech Readiness: {student_data['tech_readiness']}%\n"
-                            f"Communication Readiness: {student_data['comm_readiness']}%\n"
-                            f"Final Score: {student_data['overall_score']}%\n"
-                            f"Recommendations: {', '.join(student_data['recommendations'])}\n"
-                        )
+with col1:
+    st.header("🤖 AI Query Interface")
 
-                # Generate AI response
-                context = "\n---\n".join(filtered_context)
-                with st.spinner("🤔 Generating detailed response..."):
-                    answer = ask_question_over_text(llm, context, user_prompt)
-                    st.markdown("### 🤖 AI Response")
-                    st.write(answer)
-            else:
-                st.warning(
-                    "No students match your criteria or I couldn't understand your request.")
+    # Query input
+    user_prompt = st.text_area(
+        "Ask about student placement readiness:",
+        placeholder="Examples:\n• Show students below 70%\n• How can John Smith improve?\n• Who are the top performers?\n• Students with communication issues\n• Show all students",
+        height=100
+    )
+
+    # Query modes
+    query_mode = st.radio(
+        "Query Mode:",
+        ["🎯 Smart Filter & Analysis", "🔍 Semantic Search", "📊 Show All Students"],
+        horizontal=True
+    )
+
+with col2:
+    st.header("ℹ️ System Info")
+    st.info("""
+    **Multi-Agent System:**
+    - 🧠 Academic Performance Agent
+    - 💬 Soft Skills Agent  
+    - 📈 Readiness Analysis Agent
+    - 🎯 Intervention Agent
+    - 🔍 Query Analysis Agent
+    - 💡 RAG Response Agent
+    
+    **Features:**
+    - Persistent ChromaDB storage
+    - LangChain prompt templates
+    - Semantic search capabilities
+    - AI-powered filtering
+    """)
+
+# Process queries
+if st.button("🚀 Generate Analysis", type="primary") and user_prompt:
+    if stats.get("total_students", 0) == 0:
+        st.warning(
+            "⚠️ No student data in database. Please upload CSV data first.")
     else:
-        # Show all students if no specific prompt
-        st.info(f"Showing all {len(all_student_data)} students")
-        for student_data in all_student_data:
-            display_student(student_data)
+        with st.spinner("🔄 Processing with Multi-Agent AI System..."):
+            try:
+                if query_mode == "🔍 Semantic Search":
+                    # Semantic search mode
+                    students = rag_system.search_and_process_students(
+                        user_prompt, n_results=10)
+                    st.info(
+                        f"Found {len(students)} students using semantic search")
+
+                elif query_mode == "📊 Show All Students":
+                    # Show all students
+                    students = rag_system.process_all_students()
+                    st.info(f"Showing all {len(students)} students")
+
+                else:
+                    # Smart filter mode (default)
+                    students = rag_system.filter_students_by_query(user_prompt)
+                    st.info(
+                        f"Smart filter identified {len(students)} relevant students")
+
+                if students:
+                    # Display students
+                    st.markdown("## 📋 Student Analysis Results")
+
+                    for i, student in enumerate(students):
+                        with st.expander(f"👨‍🎓 {student['name']} - Overall Score: {student['overall_score']}%",
+                                         expanded=(i < 3)):  # Expand first 3 students
+
+                            # Metrics row
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                st.metric(
+                                    "🎯 Overall Readiness",
+                                    f"{student['overall_score']}%",
+                                    delta=f"{student['overall_score'] - 70}%" if student['overall_score'] != 70 else None
+                                )
+
+                            with col2:
+                                st.metric(
+                                    "📚 Academic Score",
+                                    f"{student['academic_score']:.1f}%"
+                                )
+
+                            with col3:
+                                st.metric(
+                                    "💬 Communication",
+                                    f"{student['communication_score']}%"
+                                )
+
+                            with col4:
+                                # Status indicator
+                                if student['overall_score'] >= 80:
+                                    st.success("🟢 Excellent")
+                                elif student['overall_score'] >= 70:
+                                    st.warning("🟡 Good")
+                                else:
+                                    st.error("🔴 Needs Improvement")
+
+                            # Detailed breakdown
+                            st.markdown("**📊 Detailed Analysis:**")
+                            st.write(
+                                f"• **Academic Reasoning:** {student['academic_reasoning']}")
+                            st.write(
+                                f"• **Communication Assessment:** {student['communication_reasoning']}")
+                            st.write(
+                                f"• **Overall Analysis:** {student['analysis']}")
+
+                            # Recommendations
+                            st.markdown("**💡 Personalized Recommendations:**")
+                            for j, rec in enumerate(student['recommendations'], 1):
+                                st.write(f"{j}. {rec}")
+
+                    # Generate AI Response
+                    st.markdown("## 🤖 AI Assistant Response")
+                    with st.spinner("Generating comprehensive AI response..."):
+                        ai_response = rag_system.generate_response(
+                            students, user_prompt)
+                        st.markdown(ai_response)
+
+                    # Summary statistics
+                    if len(students) > 1:
+                        st.markdown("## 📈 Summary Statistics")
+
+                        avg_overall = sum(s['overall_score']
+                                          for s in students) / len(students)
+                        avg_academic = sum(s['academic_score']
+                                           for s in students) / len(students)
+                        avg_comm = sum(s['communication_score']
+                                       for s in students) / len(students)
+
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            st.metric("📊 Average Overall",
+                                      f"{avg_overall:.1f}%")
+                        with col2:
+                            st.metric("📚 Average Academic",
+                                      f"{avg_academic:.1f}%")
+                        with col3:
+                            st.metric("💬 Average Communication",
+                                      f"{avg_comm:.1f}%")
+                        with col4:
+                            high_performers = len(
+                                [s for s in students if s['overall_score'] >= 80])
+                            st.metric("🏆 High Performers",
+                                      f"{high_performers}/{len(students)}")
+
+                else:
+                    st.warning("No students found matching your criteria.")
+
+            except Exception as e:
+                st.error(f"Error processing query: {str(e)}")
+                st.error("Please check your data format and try again.")
+
+# Show sample data format
+elif stats.get("total_students", 0) == 0:
+    st.markdown("## 📋 Sample CSV Format")
+    st.markdown("Upload a CSV file with the following columns:")
+
+    sample_data = pd.DataFrame({
+        'name': ['John Doe', 'Jane Smith'],
+        'attendance': [85, 92],
+        'test_score': [78, 88],
+        'assignment_percentage': [90, 85],
+        'event_participation': ['Yes', 'No'],
+        'softskill_score': [75, 80],
+        'linkedin_bio': ['Software developer with 2 years experience', 'Data analyst passionate about ML'],
+        'resume_text': ['Experience in Python and web development', 'Strong background in statistics and analytics']
+    })
+
+    st.dataframe(sample_data)
+
+    with st.expander("📝 Column Descriptions"):
+        st.markdown("""
+        - **name**: Student's full name
+        - **attendance**: Attendance percentage (0-100)
+        - **test_score**: Average test score percentage (0-100)
+        - **assignment_percentage**: Assignment completion percentage (0-100)
+        - **event_participation**: Whether student participates in events ('Yes'/'No')
+        - **softskill_score**: Initial soft skills assessment score (0-100)
+        - **linkedin_bio**: Student's LinkedIn biography (optional)
+        - **resume_text**: Resume summary text (optional)
+        """)
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center; color: #666;'>
+    🤖 Powered by Multi-Agent AI System | 🗄️ ChromaDB Persistent Storage | 🔗 LangChain Framework
+</div>
+""", unsafe_allow_html=True)

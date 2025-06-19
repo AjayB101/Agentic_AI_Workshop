@@ -1,8 +1,11 @@
 streamlit
 pandas
-PyPDF2
+chromadb
 langchain
-google-generativeai
-huggingface_hub
 langchain-community
+langchain-google-genai
+langchain-chroma
+PyPDF2
 python-docx
+google-generativeai
+sentence-transformers
