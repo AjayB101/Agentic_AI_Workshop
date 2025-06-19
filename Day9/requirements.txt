@@ -1,0 +1,8 @@
+streamlit
+pandas
+PyPDF2
+langchain
+google-generativeai
+huggingface_hub
+langchain-community
+python-docx
