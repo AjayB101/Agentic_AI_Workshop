@@ -1,3 +1,5 @@
+![alt text](image.png)
+
 # 🎓 AI-Powered Placement Readiness System
 
 An intelligent multi-agent system for evaluating student placement readiness using ChromaDB for persistent storage, LangChain for AI orchestration, and Streamlit for the user interface.
